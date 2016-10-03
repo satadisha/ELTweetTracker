@@ -67,25 +67,7 @@ class MyStreamListener(tweepy.StreamListener):
 
         
 #Dynamically fetch access token
-'''
-try:
-    redirect_url = auth.get_authorization_url()
-    print redirect_url
-except tweepy.TweepError:
-    print 'Error! Failed to get request token.'
-    
-verifier = raw_input('Verifier:')
-
-try:
-    auth.get_access_token(verifier)
-except tweepy.TweepError:
-    print 'Error! Failed to get access token.'
-    
-api = tweepy.API(auth)
-
-user = api.get_user('@satadisha')
-print user.screen_name
-print user.followers_count'''
+#dbg
 print ('1!!')
 
 access_token= '162034810-browxnFmu1BwMl98JJC6hOMDmXy9Sgpo1bsvIez4'
@@ -93,15 +75,18 @@ access_token_secret= 'AcRXJuIRizc298MLmWD1vWuhzRlMzqnaLiywJcNaTqAtx'
 
 auth.set_access_token(access_token, access_token_secret)
 auth.secure = True
+#dbg
 print ('2!!')
 
 api = tweepy.API(auth)
+#dbg
 print ('3!!')
 
 
 
 myStreamListener = MyStreamListener()
 myStream = tweepy.Stream(auth = api.auth, languages=["en"], listener=myStreamListener)
+#dbg
 print ('4!!')
 
 myStream.filter(track=['Hillary Clinton'])
@@ -109,8 +94,8 @@ myStream.filter(track=['Hillary Clinton'])
 d= {'Tweet':tweet,
      'UserName':users,'ID':ids,'User URLS':user_urls,'# RT':rt_counts,'Replier Id Strs':reply_id_strs}
 df= pd.DataFrame(d)
-print ('Whatsapp!!222')
+
 
 df.to_csv('tweetTrack.csv',header=False,mode= 'a')
-print ('Whatsapp!!')
+
 
