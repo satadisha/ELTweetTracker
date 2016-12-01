@@ -9,6 +9,7 @@ class NE_candidate:
     """A simple NE_candidate class"""
     
     def __init__(self, phrase):
+        
         length=0
         global capitalized
         global start_of_sentence
@@ -45,10 +46,8 @@ class NE_candidate:
 
 
 '''def main():
-
     my_obj = NE_candidate("sample",1)
     for i in range(5):
         my_obj.set_feature(i,True)
     my_obj.print_obj()
     print my_obj.features[capitalized]'''
-
