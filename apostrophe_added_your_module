@@ -1,0 +1,406 @@
+import string
+import sys
+import re
+import collections
+from pandas import read_csv
+from itertools import groupby
+from operator import itemgetter
+from collections import Iterable
+from nltk.corpus import stopwords
+import NE_candidate_module as ne
+cachedStopWords = set(stopwords.words("english"))
+cachedStopWords.update(("and","i","i'll","didn't","i've","they're","we're","again","i'm","a","so","except","arn't","this","when","it","it's","he's","she's","she'd","he'd","many","can't","cant","yes","no","these","to","may","maybe"))
+cachedTitles = ["Mr.","Mr","Mrs.","Mrs","Miss","Ms","Sen."]
+prep_list=["in","at","of","on","and"]
+def printList(mylist):
+    print("["),
+    #print "[",
+    for item in mylist:
+        if item != None:
+            if isinstance(item,ne.NE_candidate):
+                item.print_obj()
+                #print (item.phraseText)
+            else:
+                print (item+","),
+                #print item+",",
+    #print "]"
+    print("]")
+def flatten(mylist, outlist,ignore_types=(str, bytes, ne.NE_candidate)):
+    
+    if mylist !=[]:
+        for item in mylist:
+            #print not isinstance(item, ne.NE_candidate)
+            if isinstance(item, list) and not isinstance(item, ignore_types):
+                flatten(item, outlist)
+            else:
+                if isinstance(item,ne.NE_candidate):
+                    item.phraseText=item.phraseText.strip(' \t\n\r')
+                    item.reset_length()
+                else:
+                    item=item.strip(' \t\n\r')
+                outlist.append(item)
+    return outlist
+def consecutive_cap(tweetWordList_cappos,tweetWordList):
+    output=[]
+    #identifies consecutive numbers in the sequence
+    for k, g in groupby(enumerate(tweetWordList_cappos), lambda element: element[0]-element[1]):
+        output.append(list(map(itemgetter(1), g)))
+    count=0
+    if output:        
+        final_output=[output[0]]
+        for first, second in (zip(output,output[1:])):
+            if ((second[0]-first[-1])==2) & (tweetWordList[first[-1]+1] in prep_list):
+                (final_output[-1]).extend([first[-1]+1]+second)
+            else:
+                final_output.append(second)
+                #merge_positions.append(False)
+    else:
+        final_output=[]
+    
+    return final_output
+#basically splitting the original NE_candidate text and building individual object from each text snippet
+def build_custom_NE(phrase,prototype,feature_index,feature_value):
+    #print("Enters")
+    custom_NE= ne.NE_candidate(phrase)
+    for i in range(6):
+        custom_NE.set_feature(i,prototype.features[i])
+    custom_NE.set_feature(feature_index,feature_value)
+    if (feature_index== ne.is_csl) & (feature_value== True):
+        custom_NE.set_feature(ne.start_of_sentence, False)
+    return custom_NE
+def abbrv_algo(ne_element):
+    '''abbreviation algorithm 
+    trailing apostrophe:
+           |period:
+           |     multiple letter-period sequence:
+           |         all caps
+           | non period:
+           |     ?/! else drop apostrophe
+    else:
+        unchanged
+    '''
+    phrase= ne_element.phraseText
+    #print(phrase)
+    #since no further split occurs we can set remaining features now
+    ne_element.set_feature(ne.capitalized, True)
+    if ne_element.phraseText.isupper():
+        ne_element.set_feature(ne.all_capitalized, True)
+    else:
+        ne_element.set_feature(ne.all_capitalized, False)
+        
+    abbreviation_flag=False
+    p=re.compile(r'[^a-zA-Z\d\s]$')
+    match_list = p.findall(phrase)
+    #print("###############################################")
+    #print(phrase)
+    #print("###############################################")
+    if len(match_list)>0:
+        if phrase.endswith('.'):
+            p1= re.compile(r'([a-zA-Z][\.]\s*)')
+            match_list = p1.findall(phrase)
+            if ((len(match_list)>1) & (len(phrase)<6)):
+                #print("###############################################")
+                #print ("1. Found abbreviation: "+phrase)
+                abbreviation_flag= True
+            else:
+                phrase= phrase[:-1]
+        else:
+            if not (phrase.endswith('?')|phrase.endswith('!')):
+                phrase= phrase[:-1]
+    else:
+        p2=re.compile(r'([^a-zA-Z0-9_\s])')
+        match_list = p2.findall(phrase)
+        if ((len(match_list)==0) & (phrase.isupper()) & (len(phrase)<6)& (len(phrase)>1)):
+            #print ("2. Found abbreviation!!: "+phrase)
+            abbreviation_flag= True
+        else:
+            #print("Here-> "+phrase)
+            p3= re.compile(r'([A-Z][.][A-Z])')
+            p4= re.compile(r'\s')
+            match_list = p3.findall(phrase)
+            match_list1 = p4.findall(phrase)
+            if ((len(match_list)>0) & (len(match_list1)==0)):
+                abbreviation_flag= True
+                print ("3. Found abbreviation!!: "+phrase)
+            
+    #element= ne.NE_candidate(phrase.strip())
+    ne_element.phraseText=phrase
+    ne_element.reset_length()
+    ne_element.set_feature(ne.abbreviation, abbreviation_flag)
+    return ne_element
+def punct_clause(NE_phrases):
+    
+    cap_phrases=NE_phrases.phraseText.strip()
+    #print (cap_phrases)
+    if (re.compile(r'[^a-zA-Z0-9_\s]')).findall(cap_phrases):
+        #case of intermediate punctuations: handles abbreviations
+        p1= re.compile(r'(?:[a-zA-Z0-9][^a-zA-Z0-9_\s]\s*)')
+        match_lst = p1.findall(cap_phrases)
+        if match_lst:
+            index= (list( p1.finditer(cap_phrases) )[-1]).span()[1]
+        
+        p= re.compile(r'[^a-zA-Z\d\s]')
+        match_list = p.findall(cap_phrases)
+
+        p2=re.compile(r'[^a-zA-Z\d\s]$') #ends with punctuation
+
+        if len(match_list)-len(match_lst)>0:
+            if (p2.findall(cap_phrases)):
+                #only strips trailing punctuations, not intermediate ones following letters
+                cap_phrases = cap_phrases[0:index]+re.sub(p, '', cap_phrases[index:])
+                NE_phrases.phraseText= cap_phrases
+        
+    
+    #comma separated NEs
+    #lst=filter(lambda(word): word!="", re.split('[,]', cap_phrases))
+    start_of_sentence_fix=NE_phrases.features[ne.start_of_sentence]
+    lst=list(filter(lambda word: word!="", re.split('[,]\s*', cap_phrases)))
+    if len(lst)>1:
+        #print ("splitting now")
+        lst_nsw=list(filter(lambda phrase: ((phrase.lower() not in cachedStopWords) & (len(phrase)>1)) ,lst))
+        #print (lst_nsw)
+        final_lst= list(map(lambda phrase:build_custom_NE(phrase,NE_phrases,ne.is_csl,True), lst_nsw))
+        final_lst[0].set_feature(ne.start_of_sentence, NE_phrases.features[ne.start_of_sentence])
+    else:
+        NE_phrases.set_feature(ne.is_csl,False)
+        final_lst=[NE_phrases]
+    
+    #check abbreviation
+    final_lst= list(map(lambda phrase: abbrv_algo(phrase), final_lst))
+
+    
+    #print(lst)
+    return final_lst
+def title_check(ne_phrase):
+    title_flag=False
+    words=ne_phrase.phraseText.split()
+    for word in words:
+        if word in cachedTitles:
+            title_flag= True
+            break
+    ne_phrase.set_feature(ne.title,title_flag)
+    return ne_phrase
+'''def check(word):
+    p=re.compile(r'([a-zA-Z])')
+    match_lst = p.findall(word)
+    if len(match_lst)==0:
+            print word+ str(len(match_lst))
+            return ""
+    else:
+        return word+" "'''
+#%%timeit -o
+def f(x,tweetWordList):
+
+    #list1=map(lambda word: check(tweetWordList[word], word), x)
+    list1=list(map(lambda word: tweetWordList[word]+" ", x[:-1]))
+    phrase="".join(list1)+tweetWordList[x[-1]]
+    '''if phrase=="":
+        print "JUST_DIGIT_ERROR"
+        phrase="JUST_DIGIT_ERROR"'''
+
+    NE_phrase= ne.NE_candidate(phrase.strip())
+    if 0 in x:
+        NE_phrase.set_feature(ne.start_of_sentence,True)
+    #else:
+     #   NE_phrase.set_feature(ne.start_of_sentence,False)
+
+    return NE_phrase
+
+def capCheck(word):
+    p=re.compile(r'^[\W]*[A-Z]')
+    l= p.match(word)
+    if l:
+        return True
+    else:
+        return False
+def final_split(ne_pctd):
+    final=[]
+    splitTextList=[]
+    str_pattern=re.compile('[.:?!]+[\s]+')
+    if ((ne_pctd.features[ne.abbreviation] is False)&(ne_pctd.features[ne.title] is False)):
+        splitTextList=list(filter (lambda sentence: len(sentence.strip())>0, str_pattern.split(ne_pctd.phraseText)))
+    if len(splitTextList)<2:
+        return [ne_pctd]
+    else:
+        #print("Had to split")
+        splitTextList_nsw=list(filter(lambda phrase: (phrase.lower() not in cachedStopWords) & (len(phrase)>1) ,splitTextList))
+        for text in splitTextList_nsw:
+            split_ne= ne.NE_candidate(text.strip())
+            split_ne.set_feature(ne.capitalized,True)
+            split_ne_pc=punct_clause(split_ne)
+            split_ne_pctd=list(map(lambda element: title_check(element), split_ne_pc))
+            final+=split_ne_pctd
+        return final
+
+def apstr_check(sentence):
+    flag=False
+    WordList= sentence.split()
+    from_apstr={}
+#    from_apstr.setdefault(key, [])
+    from_apstr = collections.defaultdict(list)
+    counter=0
+    str1=""
+    for word in WordList:
+        if("'" in word and word[0].isupper()):
+           # print("33###########################################")
+            #print(word)
+            flag=True
+            counter=counter+1
+            from_apstr[counter].append(word)
+            continue
+        if(flag== True):
+            from_apstr[counter].append(word)
+            #print(from_apstr[counter])
+
+    if(flag==True):    
+        for key in from_apstr:
+            str1=' '.join(from_apstr[key])
+            #str1=from_apstr[key][0]
+            return apstr_algo(str1)
+            #print(str1)
+    
+
+    
+            
+
+def apstr_algo(sentence):
+    pos = 0
+    NE_phrase=""
+    count_blank=0
+    NE_holder=[]
+
+    for index,letter in enumerate(sentence):
+        #print(letter)
+        if(letter==" "):
+            count_blank=count_blank+1
+        if(letter==" " and count_blank == 3 ):
+            pos=index
+        if(letter in string.punctuation and letter!="'" and letter!="-"):
+            if(count_blank==2):
+                NE_phrase=sentence[:index]
+                print("11###########################################")
+                print(NE_phrase)
+                NE_phrase2= ne.NE_candidate(NE_phrase)
+                NE_phrase2.set_feature(ne.apostrophe,True)
+                NE_holder.append(NE_phrase2)
+
+                break;
+            if(count_blank<2):
+                print(letter)
+                NE_phrase=sentence[:index]
+                print("22###########################################")
+                print(count_blank)
+
+                print(NE_phrase)
+                NE_phrase2= ne.NE_candidate(NE_phrase)
+                NE_phrase2.set_feature(ne.apostrophe,True)
+                NE_holder.append(NE_phrase2)
+
+                break;
+
+            if(count_blank>2):
+                NE_phrase=sentence[:pos]
+                print("33###########################################")
+                print(NE_phrase)
+                NE_phrase2= ne.NE_candidate(NE_phrase)
+                NE_phrase2.set_feature(ne.apostrophe,True)
+                NE_holder.append(NE_phrase2)
+                break;
+
+
+    return NE_holder
+                
+        
+        
+'''This is the main module. I am not explicitly writing it as a function as I am not sure what argument you are 
+passing.However you can call this whole cell as a function and it will call the rest of the functions in my module
+to extract candidates and features
+'''
+
+'''#reads input from the database file and converts to a dataframe. You can change this part accordingly and
+#directly convert argument tuple to the dataframe'''
+#Collection.csv
+df = read_csv('Unlabelled_corpus.csv', index_col='ID', header=0, encoding='utf-8')
+#print df.columns.values.tolist()
+
+#%%timeit -o
+#module_capital_punct.main:
+'''I am running this for 100 iterations for testing purposes. Of course you no longer need this for loop as you are
+#running one tuple at a time'''
+
+count=0
+ne_count=0
+token_count=0
+
+NE_list=[]
+for index, row in df.iterrows():
+    
+    if count<1000:
+        #tweetText=unicode(row['Tweets']).encode('utf-8')
+        tweetText=str(row['Tweets'])
+        #tweetText=row['Tweets']
+        print(tweetText)
+        #capitalization module
+        #if all words are capitalized:
+        apstr_holder=[]
+        if tweetText.isupper():
+            #print "All caps module"
+            print ("All caps module")
+        else:
+            ne_List_final=[]
+            #pre-modification: returns word list split at whitespaces; retains punctuation
+            tweetSentenceList=list(filter (lambda sentence: len(sentence)>0, tweetText.split('\n')))
+            #print(tweetSentenceList)
+            #post-modification
+            '''tweetSentenceList_initial=list(filter (lambda sentence: len(sentence)>0, tweetText.split('\n')))
+            str_pattern=re.compile('[.?!]+[\s]+')
+            tweetSentenceList_i=flatten(list(map(lambda x: str_pattern.split(x), tweetSentenceList_initial)),[])
+            tweetSentenceList=list(filter (lambda sentence: len(sentence)>0, tweetSentenceList_i))'''
+            
+            #printList(tweetSentenceList)
+            for sentence in tweetSentenceList:
+                if(isinstance(apstr_check(sentence),list)):
+                    apstr_holder= apstr_check(sentence)+apstr_holder   
+                
+                tweetWordList= sentence.split()
+                token_count+=len(tweetWordList)
+                #print (tweetWordList)
+                #returns position of words that are capitalized
+                tweetWordList_cappos = list(map(lambda element : element[0], filter(lambda element : capCheck(element[1]), enumerate(tweetWordList))))
+                #print("####################################################################")
+                #print (tweetWordList_cappos)
+
+                #tweetWordList_cappos = map(lambda (index, word) : index, filter(lambda (index, word) : word[0].isupper()|word[0].isdigit(), enumerate(tweetWordList)))
+                #returns list with position of consecutively capitalized words
+                output = consecutive_cap(tweetWordList_cappos,tweetWordList)
+                #print("####################################################################")
+                #print (output)
+
+                #consecutive capitalized phrases
+                consecutive_cap_phrases_wStopwords=list(map(lambda x: f(x,tweetWordList), output))
+                consecutive_cap_phrases=filter(lambda phrase: phrase.phraseText.lower() not in cachedStopWords ,consecutive_cap_phrases_wStopwords)
+                #print("####################################################################")
+                #printList(flatten(consecutive_cap_phrases,[]))
+                #ne_List=flatten(consecutive_cap_phrases,[])
+
+                #implement the punctuation clause
+                ne_List_pc=flatten(list(map(lambda NE_phrase: punct_clause(NE_phrase), consecutive_cap_phrases)),[])
+                #printList(ne_List_pc)
+
+                #implement title detection
+                ne_List_pctd= list(map(lambda element: title_check(element), ne_List_pc))
+                
+                #final check for splitting
+                ne_List=flatten(list(map(lambda ne_pctd:final_split(ne_pctd),ne_List_pctd)),[])
+                
+                ne_count+=len(ne_List)
+                ne_List_final+=ne_List+apstr_holder
+                
+            printList(ne_List_final)
+            NE_list+=ne_List_final
+            print ("")
+        count+=1
+    else:
+        break
+print("Total number of tokens processed: "+str(token_count))
+print ("Total number of NEs extracted: "+str(ne_count))
