@@ -4,9 +4,19 @@ abbreviation=2
 all_capitalized=3
 is_csl=4
 title=5
-is_number=6
-has_number=7
-date_indicator=8
+has_number=6
+date_indicator=7
+is_apostrophed=8 #not a boolen feature
+has_intermediate_punctuation=9
+ends_like_verb=10
+ends_like_adverb=11
+change_in_capitalization=12
+has_topic_indicator=13
+'''other features:
+         POS_isAdjective
+         POS_endwithAdjective
+         Title
+'''
 
 class NE_candidate:
     """A simple NE_candidate class"""
@@ -22,16 +32,13 @@ class NE_candidate:
         global is_number
         global has_number
         global date_indicator
-        '''other features:
-                POS_isAdjective
-                POS_endwithAdjective
-                Title
-        '''
+        global is_apostrophed
         self.phraseText=phrase
         self.position=position
         self.date_num_holder=[]
+        self.punctuation_holder=[]
         self.length=len(phrase.split())
-        self.features = [None]*9
+        self.features = [None]*14
         return
     
     
@@ -39,12 +46,20 @@ class NE_candidate:
         self.features[feature_index]= feature_value
         return
     
+    def set_punctuation_holder(self,holder_in):
+        self.punctuation_holder=holder_in
+        return
+    
+    def set_date_num_holder(self,holder_in):
+        self.date_num_holder=holder_in
+        return
+    
     def reset_length(self):
         self.length=len(self.phraseText.split())
         return
     
     def print_obj(self):
-        print (self.phraseText+" "+str(self.length)+" "+str(self.position)+" "+str(self.date_num_holder), end=" ")
+        print (self.phraseText+" "+str(self.length)+" "+str(self.position)+" "+str(self.date_num_holder)+" "+str(self.punctuation_holder), end=" ")
         #print self.phraseText+" "+str(self.length),
         for feature in self.features:
             print (feature, end=" ")
