@@ -33,6 +33,11 @@ class NE_candidate:
         global has_number
         global date_indicator
         global is_apostrophed
+        global has_intermediate_punctuation
+        global ends_like_verb
+        global ends_like_adverb
+        global change_in_capitalization
+        global has_topic_indicator
         self.phraseText=phrase
         self.position=position
         self.date_num_holder=[]
