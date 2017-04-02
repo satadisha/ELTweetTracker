@@ -6,12 +6,12 @@ is_csl=4
 title=5
 has_number=6
 date_indicator=7
-is_apostrophed=8 #not a boolen feature
-has_intermediate_punctuation=9
+is_apostrophed=8 #not a boolean feature : extension required
+has_intermediate_punctuation=9 #segmentation required
 ends_like_verb=10
 ends_like_adverb=11
-change_in_capitalization=12
-has_topic_indicator=13
+change_in_capitalization=12 #segmentation required
+has_topic_indicator=13 #segmentation required
 '''other features:
          POS_isAdjective
          POS_endwithAdjective
