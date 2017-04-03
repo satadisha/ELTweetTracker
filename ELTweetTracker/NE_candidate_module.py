@@ -10,7 +10,7 @@ is_apostrophed=8 #not a boolean feature : extension required
 has_intermediate_punctuation=9 #segmentation required
 ends_like_verb=10
 ends_like_adverb=11
-change_in_capitalization=12 #segmentation required
+change_in_capitalization=12 #not a boolean feature : #segmentation required
 has_topic_indicator=13 #segmentation required
 '''other features:
          POS_isAdjective
@@ -29,7 +29,7 @@ class NE_candidate:
         global all_capitalized
         global is_csl
         global title
-        global is_number
+        #global is_number
         global has_number
         global date_indicator
         global is_apostrophed
