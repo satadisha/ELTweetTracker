@@ -14,8 +14,8 @@ rt_counts=[]
 reply_ids=[]
 reply_id_strs=[]
 
-consumer_key= 'cVDSZUobYYtTSyZs7kCbpn0Bj'
-consumer_secret= 'GPzGGWuqqQ2ldGHr207kx3ARtNDgFeqq9GBY8PKyN4T7GG0ohN'
+consumer_key= ''
+consumer_secret= ''
 
 #Setting connection of app to Twitter
 auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
@@ -70,8 +70,8 @@ class MyStreamListener(tweepy.StreamListener):
 #dbg
 print ('1!!')
 
-access_token= '162034810-browxnFmu1BwMl98JJC6hOMDmXy9Sgpo1bsvIez4'
-access_token_secret= 'AcRXJuIRizc298MLmWD1vWuhzRlMzqnaLiywJcNaTqAtx'
+access_token= ''
+access_token_secret= ''
 
 auth.set_access_token(access_token, access_token_secret)
 auth.secure = True
